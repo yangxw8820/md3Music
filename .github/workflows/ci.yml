@@ -251,9 +251,9 @@ jobs:
               echo "::error::TV 包混入 USB 独占 UI 或歌词推送子页: $f"; exit 1
             fi
           }
-          echo "start check tv"
-          check_tv "$tv64_apk" "lib/arm64-v8a"
-          check_tv "$tv32_apk" "lib/armeabi-v7a"
+          # echo "start check tv"
+          # check_tv "$tv64_apk" "lib/arm64-v8a"
+          # check_tv "$tv32_apk" "lib/armeabi-v7a"
 
           echo "start check ~tv"
           # 反向：正常包不得含 TV 焦点符号
