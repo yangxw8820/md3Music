@@ -227,7 +227,7 @@ jobs:
           test "$(apk_id "$am_apk")" = "com.apple.android.music"
           test "$(apk_id "$tv64_apk")" = "com.md3music.md3music.tv"
           test "$(apk_id "$tv32_apk")" = "com.md3music.md3music.tv"
-               
+
           echo "start check ABI"
           # ABI 校验：arm64 包只含 arm64-v8a，arm32 包只含 armeabi-v7a
           test "$(native_code "$std_apk")" = "'arm64-v8a'"
