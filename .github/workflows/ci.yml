@@ -261,7 +261,7 @@ jobs:
           echo "start check tv"
           check_tv "$tv64_apk" "lib/arm64-v8a"
           check_tv "$tv32_apk" "lib/armeabi-v7a"
-               
+
           echo "start check ~tv"
           # 反向：正常包不得含 TV 焦点符号
           for f in "$std_apk" "$am_apk"; do
