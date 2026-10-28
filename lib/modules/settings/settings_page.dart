@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:m3e_core/m3e_core.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:md3music/core/utils/RegionWrap.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -7005,7 +7006,7 @@ class _SettingsPageState extends State<SettingsPage>
           preview: _SettingsAmStylePreview(colorScheme: colorScheme),
         ),
       ],
-    );
+    ).wrap(debugLabel: 'amStyle');
   }
 
   Widget _buildStyleCard({
@@ -7017,7 +7018,7 @@ class _SettingsPageState extends State<SettingsPage>
     required Widget preview,
   }) {
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
         child: AnimatedContainer(
           duration: M3ExpressiveMotion.defaultDuration,
