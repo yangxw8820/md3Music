@@ -281,9 +281,9 @@ class _UserAgreementPageState extends State<UserAgreementPage>
                                     style:
                                         Theme.of(context,
                                       ).textTheme.bodyMedium,
-                                  ),
+                                  ).wrapFocus(),
                                 ],
-                              ).wrapFocus(),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
