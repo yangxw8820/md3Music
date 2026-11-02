@@ -1,3 +1,5 @@
+import 'package:md3music/core/utils/RegionWrap.dart';
+
 import '../../core/theme/app_dimens.dart';
 import '../../core/layout/page_layout.dart';
 import '../../main.dart' show requestPermissions;
@@ -281,7 +283,7 @@ class _UserAgreementPageState extends State<UserAgreementPage>
                                       ).textTheme.bodyMedium,
                                   ),
                                 ],
-                              ),
+                              ).wrapFocus(),
                             ),
                           ),
                           const SizedBox(height: 12),
