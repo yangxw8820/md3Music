@@ -229,12 +229,14 @@ jobs:
           no_infer_assets "$tv64_apk"
           no_infer_assets "$tv32_apk"
 
+          echo "start check package"
           # 包名校验
           test "$(apk_id "$lite_apk")" = "com.md3music.md3music"
           test "$(apk_id "$am_apk")" = "com.apple.android.music"
           test "$(apk_id "$tv64_apk")" = "com.md3music.md3music.tv"
           test "$(apk_id "$tv32_apk")" = "com.md3music.md3music.tv"
 
+          echo "start check ABI"
           # ABI 校验：arm64 包只含 arm64-v8a，arm32 包只含 armeabi-v7a
           test "$(native_code "$lite_apk")" = "'arm64-v8a'"
           test "$(native_code "$am_apk")" = "'arm64-v8a'"
@@ -264,9 +266,11 @@ jobs:
               echo "::error::TV 包混入 USB 独占 UI 或歌词推送子页: $f"; exit 1
             fi
           }
+          # echo "start check tv"
           check_tv "$tv64_apk" "lib/arm64-v8a"
           check_tv "$tv32_apk" "lib/armeabi-v7a"
 
+          echo "start check ~tv"
           # 反向：正常包不得含 TV 焦点符号
           for f in "$std_apk" "$am_apk"; do
             if unzip -p "$f" lib/arm64-v8a/libapp.so | grep -aq DpadFocusable; then
