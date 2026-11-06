@@ -1921,6 +1921,9 @@ class _SettingsPageState extends State<SettingsPage>
 
   /// 总览页顶部搜索框。
   Widget _buildSearchField(ColorScheme colorScheme) {
+    if (kTvBuild) {
+      return SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
