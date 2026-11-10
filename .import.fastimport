@@ -29763,3 +29763,17 @@ committer vcexml <3356141621@qq.com> 1794110062 +0800
 data 77
 feat(lyric_preferences): 为 Android 平台应用相同的歌词配置参数
 from :2837
+commit refs/heads/rust-local-force
+mark :2839
+author vcexml <3356141621@qq.com> 1794124131 +0800
+committer vcexml <3356141621@qq.com> 1794124131 +0800
+data 103
+fix: 修复诊断日志插件缺少上下文导致的崩溃并新增历史进程退出和 crash 日志
+from :2838
+commit refs/heads/rust-local-force
+mark :2840
+author vcexml <3356141621@qq.com> 1794126048 +0800
+committer vcexml <3356141621@qq.com> 1794126048 +0800
+data 49
+fix(audio): 仅开启硬解后允许能力探测
+from :2839

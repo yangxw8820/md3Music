@@ -183,7 +183,7 @@ class MainActivity : FlutterActivity() {
                 Log.w("AudioOffload", "插件注册失败：$it")
             }
             ExternalEditorPlugin(context).register(engine)
-            DiagnosticLogPlugin().register(engine)
+            DiagnosticLogPlugin(context.applicationContext).register(engine)
             AutomixAnalysisPlugin().register(engine)
         }
 
