@@ -6,7 +6,6 @@ import 'package:dpad/dpad.dart';
 import 'package:flutter/foundation.dart'
     show kDebugMode, kProfileMode, ValueListenable;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
-import 'package:flutter_exit_app/flutter_exit_app.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -3669,7 +3668,7 @@ class _MainLayoutState extends State<_MainLayout>
         DiagnosticLogger.instance.e('退出 App：结束任务失败，回退桌面 $error\n$stack');
         await SystemNavigator.pop();
       }
-      await FlutterExitApp.exitApp();
+      exit(0);
     }
     _isExiting = false;
   }
