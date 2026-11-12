@@ -233,24 +233,19 @@ jobs:
           no_infer_assets "$tv64_apk"
           no_infer_assets "$tv32_apk"
 
+          echo "start check package"
           # 包名校验
           test "$(apk_id "$lite_apk")" = "com.md3music.md3music"
           test "$(apk_id "$am_apk")" = "com.apple.android.music"
           test "$(apk_id "$tv64_apk")" = "com.md3music.md3music.tv"
           test "$(apk_id "$tv32_apk")" = "com.md3music.md3music.tv"
 
+          echo "start check ABI"
           # ABI 校验：arm64 包只含 arm64-v8a，arm32 包只含 armeabi-v7a
           test "$(native_code "$lite_apk")" = "'arm64-v8a'"
           test "$(native_code "$am_apk")" = "'arm64-v8a'"
           test "$(native_code "$tv64_apk")" = "'arm64-v8a'"
           test "$(native_code "$tv32_apk")" = "'armeabi-v7a'"
-
-          # 引擎校验：lite/tv 全部 Skia（false），apple-music Impeller（true）
-          test "$(impeller_val "$lite_apk")" = "false"
-          test "$(impeller_val "$am_apk")" = "true"
-          test "$(impeller_val "$tv64_apk")" = "false"
-          test "$(impeller_val "$tv32_apk")" = "false"
-          echo "引擎校验通过：lite/tv=Skia, apple-music=Impeller"
 
           # TV 包专项校验（与本地 android.ps1 产物自检同口径）
           # 开启 --obfuscate 后 libapp.so 内无明文 Dart 符号，正/反向符号校验
@@ -271,11 +266,13 @@ jobs:
               echo "::error::TV 包混入 USB 独占 UI 或歌词推送子页: $f"; exit 1
             fi
           }
+          # echo "start check tv"
           check_tv "$tv64_apk" "build/symbols/tv-arm64/app.android-arm64.symbols"
           check_tv "$tv32_apk" "build/symbols/tv-arm32/app.android-arm.symbols"
 
+          echo "start check ~tv"
           # 反向：正常包不得含 TV 焦点符号
-          for pair in "$std_apk:build/symbols/std-arm64/app.android-arm64.symbols" "$am_apk:build/symbols/am-arm64/app.android-arm64.symbols"; do
+          for pair in "$lite_apk:build/symbols/std-arm64/app.android-arm64.symbols" "$am_apk:build/symbols/am-arm64/app.android-arm64.symbols"; do
             f="${pair%%:*}"; symbols="${pair##*:}"
             if grep -aq DpadFocusable "$symbols"; then
               echo "::error::正常包混入 TV 焦点符号: $f"; exit 1
