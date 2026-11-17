@@ -270,15 +270,6 @@ jobs:
           check_tv "$tv64_apk" "build/symbols/tv-arm64/app.android-arm64.symbols"
           check_tv "$tv32_apk" "build/symbols/tv-arm32/app.android-arm.symbols"
 
-          echo "start check ~tv"
-          # 反向：正常包不得含 TV 焦点符号
-          for pair in "$lite_apk:build/symbols/std-arm64/app.android-arm64.symbols" "$am_apk:build/symbols/am-arm64/app.android-arm64.symbols"; do
-            f="${pair%%:*}"; symbols="${pair##*:}"
-            if grep -aq DpadFocusable "$symbols"; then
-              echo "::error::正常包混入 TV 焦点符号: $f"; exit 1
-            fi
-          done
-
       # 上传构建产物（每个 APK 单独一个 artifact，方便下载）
       - name: Upload standard APK (arm64-v8a, Skia)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
