@@ -3720,6 +3720,7 @@ class _MainLayoutState extends State<_MainLayout>
         DiagnosticLogger.instance.e('退出 App：结束任务失败，回退桌面 $error\n$stack');
         await SystemNavigator.pop();
       }
+      exit(0);
     }
     _isExiting = false;
   }
