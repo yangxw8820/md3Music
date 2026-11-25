@@ -6,10 +6,8 @@ import 'package:dpad/dpad.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:m3e_core/m3e_core.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:md3music/core/utils/RegionWrap.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,6 +25,7 @@ import '../../core/layout/page_layout.dart';
 import '../../core/layout/ui_density.dart';
 import '../../core/remote/remote_slider.dart';
 import '../../core/services/audio_service_io.dart';
+import '../../core/services/cache_usage_service.dart';
 import '../../core/services/audio_offload_service.dart';
 import '../../core/services/volume_normalization_service.dart';
 import '../../core/services/background_image_loader.dart';
@@ -7171,6 +7170,8 @@ class _SettingsPageState extends State<SettingsPage>
           ),
         ),
         _buildGroupLabel('存储维护', colorScheme),
+        // search: 缓存 占用 总量 图片 歌曲 上限 容量 管理
+        _CacheManagementCard(colorScheme: colorScheme),
         // search: 缓存 清除
         ListTile(
           title: const Text('清除缓存'),
@@ -7628,31 +7629,21 @@ class _SettingsPageState extends State<SettingsPage>
 
   Future<void> _doClearCache() async {
     try {
-      // 1. 清图片缓存
-      await DefaultCacheManager().emptyCache();
-      // 2. 清 app 临时目录（Android 系统设置里的"清除缓存"也指这个）
-      try {
-        final dir = await getTemporaryDirectory();
-        if (dir.existsSync()) {
-          for (final entity in dir.listSync()) {
-            try {
-              if (entity is Directory) {
-                entity.deleteSync(recursive: true);
-              } else {
-                entity.deleteSync();
-              }
-            } catch (_) {}
-          }
-        }
-      } catch (_) {}
-      // 3. 清 KugouProvider 内存
+      // 1. 统一清三处落盘缓存（网络图片 / 深度图 / 远程歌曲与封面）。
+      //    旧实现只清临时目录 + DefaultCacheManager，既漏掉 documents 下的
+      //    深度图，也会误删临时目录里的升级包、录音等非缓存文件。
+      await CacheUsageService.instance.clearAll();
+      // 2. 清 KugouProvider 内存
       if (mounted) {
         context.read<KugouProvider>().clearMemoryCache();
       }
-      // 4. 重置发现页日期标志
+      // 3. 重置发现页日期标志
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('discover_last_date');
-      _settingsRepository.setCacheSize(0);
+      // 4. 上限回到默认值：旧的置 0 不是有效上限，会让每次下载后立刻被裁空。
+      await _settingsRepository.setCacheSize(
+        SettingsRepository.kCacheSizeDefaultMb,
+      );
     } catch (e) {
       debugPrint('Clear cache error: $e');
     }
@@ -8718,6 +8709,186 @@ class _DisplayScaleConfirmDialogState
           child: const Text('保留'),
         ),
       ],
+    );
+  }
+}
+
+/// 「缓存与数据」页的占用账本 + 上限滑块。
+///
+/// 独立 StatefulWidget 而不是塞进 _SettingsPageState：统计是异步的，
+/// 拖动滑块后要立即裁剪并重新测量，局部 setState 不该重刷整个设置页。
+class _CacheManagementCard extends StatefulWidget {
+  const _CacheManagementCard({required this.colorScheme});
+
+  final ColorScheme colorScheme;
+
+  @override
+  State<_CacheManagementCard> createState() => _CacheManagementCardState();
+}
+
+class _CacheManagementCardState extends State<_CacheManagementCard> {
+  static const int _stepMb = 100;
+
+  final CacheUsageService _service = CacheUsageService.instance;
+  final SettingsRepository _repo = SettingsRepository();
+
+  CacheUsageSnapshot _snapshot = const CacheUsageSnapshot(
+    imageBytes: 0,
+    songBytes: 0,
+  );
+  int _limitMb = SettingsRepository.kCacheSizeDefaultMb;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // ignore: discarded_futures
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final limitMb = await _repo.getCacheSize();
+    final snapshot = await _service.measure(
+      limitBytes: CacheUsageService.mbToBytes(limitMb),
+    );
+    if (!mounted) return;
+    setState(() {
+      _limitMb = limitMb;
+      _snapshot = snapshot;
+    });
+  }
+
+  static int _clampMb(int mb) => mb < SettingsRepository.kCacheSizeMinMb
+      ? SettingsRepository.kCacheSizeMinMb
+      : (mb > SettingsRepository.kCacheSizeMaxMb
+          ? SettingsRepository.kCacheSizeMaxMb
+          : mb);
+
+  Future<void> _applyLimit(int mb) async {
+    final clamped = _clampMb(mb);
+    if (!mounted) return;
+    setState(() {
+      _limitMb = clamped;
+      _busy = true;
+    });
+    await _repo.setCacheSize(clamped);
+    await _service.enforceLimit(limitMb: clamped);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    // ignore: discarded_futures
+    _refresh();
+  }
+
+  Widget _usageRow(String label, int bytes, ColorScheme cs, {bool total = false}) {
+    final textStyle = (total
+            ? Theme.of(context).textTheme.titleMedium
+            : Theme.of(context).textTheme.bodyMedium)
+        ?.copyWith(
+      color: total ? cs.onSurface : cs.onSurfaceVariant,
+      fontWeight: total ? FontWeight.w600 : null,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          Text(label, style: textStyle),
+          const Spacer(),
+          Text(CacheUsageService.formatBytes(bytes), style: textStyle),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = widget.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.storage_outlined, size: 20, color: cs.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                '缓存占用',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: cs.onSurface,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: '重新统计占用',
+                iconSize: 20,
+                onPressed: _busy ? null : () => _refresh(),
+                icon: Icon(Icons.refresh, color: cs.primary),
+              ),
+            ],
+          ),
+          _usageRow('总占用', _snapshot.totalBytes, cs, total: true),
+          _usageRow('图片', _snapshot.imageBytes, cs),
+          _usageRow('歌曲', _snapshot.songBytes, cs),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Text(
+                '缓存上限',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$_limitMb MB',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: cs.primary,
+                ),
+              ),
+            ],
+          ),
+          M3ESlider(
+            // 档位式触感，避免连续 haptic 洪泛 MethodChannel。
+            decoration: kSettingsSliderDecoration,
+            value: _limitMb.toDouble(),
+            min: SettingsRepository.kCacheSizeMinMb.toDouble(),
+            max: SettingsRepository.kCacheSizeMaxMb.toDouble(),
+            divisions: (SettingsRepository.kCacheSizeMaxMb -
+                    SettingsRepository.kCacheSizeMinMb) ~/
+                _stepMb,
+            label: '$_limitMb MB',
+            onChanged: _busy
+                ? null
+                : (value) => setState(() => _limitMb = value.round()),
+            onChangeEnd: _busy ? null : (value) => _applyLimit(value.round()),
+          ),
+          _settingsDescription(
+            context,
+            '超过上限时按最近使用时间优先清理歌曲缓存，其次清理图片；'
+            '在线歌曲为流式播放，不占用本地空间。',
+            cs,
+            padding: const EdgeInsets.fromLTRB(
+              0,
+              AppSpacing.xs,
+              0,
+              AppSpacing.xs,
+            ),
+          ),
+          if (_snapshot.overLimit)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                '当前占用已超过上限，调整上限或清除缓存后立即生效',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.error,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

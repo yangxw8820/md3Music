@@ -47,6 +47,7 @@ import '../core/services/remote/playback_headers.dart';
 import '../core/services/remote/remote_download_cache.dart';
 import '../core/services/remote/remote_storage_config.dart';
 import '../core/services/remote/remote_storage_repository.dart';
+import '../core/services/cache_usage_service.dart';
 import '../core/services/viper_master_service.dart';
 import '../data/models/song.dart';
 import '../modules/player/comments_view.dart';
@@ -7838,7 +7839,13 @@ class PlayerProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (song.remoteType == SongRemoteType.ftp) {
       final cfg = RemoteStorageRepository.peekConfig(song.remoteSourceId);
       if (cfg == null) return null;
-      final cache = await RemoteDownloadCache.create(config: cfg);
+      // 上限来自设置页的缓存预算，不再用 RemoteDownloadCache 的 1GB 硬编码。
+      final cache = await RemoteDownloadCache.create(
+        config: cfg,
+        maxBytes: CacheUsageService.mbToBytes(
+          await SettingsRepository().getCacheSize(),
+        ),
+      );
       final cached = await cache.ensureDownloaded(
         cfg.id,
         _remotePathFromUrl(song.url),

@@ -235,6 +235,7 @@ const List<({String label, String category, String subpage, String aliases})>
   (label: '服务状态', category: 'AI 代理', subpage: '', aliases: '服务状态 运行中 启动失败 日志 调用'),
   (label: '使用指南', category: 'AI 代理', subpage: '', aliases: '使用指南 教程 文档 帮助 github 说明'),
   (label: '本地数据接口', category: '缓存与数据', subpage: '', aliases: '接口 本地服务器 api 在线音乐'),
+  (label: '缓存占用', category: '缓存与数据', subpage: '', aliases: '缓存 占用 总量 图片 歌曲 上限 容量 管理'),
   (label: '清除缓存', category: '缓存与数据', subpage: '', aliases: '缓存 清除'),
   (label: '数据迁移（修复数据混乱）', category: '缓存与数据', subpage: '', aliases: '迁移 数据 修复'),
   (label: '应用版本', category: '关于', subpage: '', aliases: '版本 检查更新'),

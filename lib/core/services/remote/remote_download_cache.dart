@@ -9,6 +9,23 @@ import 'ftp_client.dart';
 import 'remote_storage_config.dart';
 import 'webdav_client.dart';
 
+/// 缓存目录里音频与图片混放，统计占用时按扩展名拆分（小写、带点）。
+const Set<String> _kAudioExtensions = {
+  '.mp3', '.m4a', '.aac', '.flac', '.wav', '.ogg', '.opus',
+  '.wma', '.ape', '.mp2', '.aiff', '.alac',
+};
+const Set<String> _kImageExtensions = {
+  '.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic',
+};
+
+/// 缓存目录字节统计：音频 / 图片 / 其他 / 合计。
+typedef RemoteCacheBytes = ({
+  int audioBytes,
+  int imageBytes,
+  int otherBytes,
+  int totalBytes
+});
+
 /// 远程文件按需下载缓存（FTP 音频整文件 + 远程封面）。
 ///
 /// 文件路径约定：`tempDir/<configId>/<sha1(configId:remotePath)><ext>`。
@@ -44,11 +61,76 @@ class RemoteDownloadCache {
     return Directory('${base.path}/remote_download_cache');
   }
 
+  /// 统计缓存目录实际占用，按扩展名拆分音频 / 图片 / 其他。
+  ///
+  /// `.part` 半成品虽然不是有效缓存，但仍占磁盘，按去掉 `.part` 后的
+  /// 扩展名归并到对应分类；统计失败的文件直接跳过，不影响其他文件。
+  static Future<RemoteCacheBytes> cacheBytes({Directory? directory}) async {
+    final dir = directory ?? await defaultCacheDir();
+    if (!dir.existsSync()) {
+      return (audioBytes: 0, imageBytes: 0, otherBytes: 0, totalBytes: 0);
+    }
+    var audio = 0;
+    var image = 0;
+    var other = 0;
+    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      int length;
+      try {
+        length = entity.lengthSync();
+      } catch (_) {
+        continue;
+      }
+      final ext = _classifyExt(entity.path);
+      if (_kAudioExtensions.contains(ext)) {
+        audio += length;
+      } else if (_kImageExtensions.contains(ext)) {
+        image += length;
+      } else {
+        other += length;
+      }
+    }
+    return (
+      audioBytes: audio,
+      imageBytes: image,
+      otherBytes: other,
+      totalBytes: audio + image + other,
+    );
+  }
+
+  /// 维护用：把缓存目录裁剪到 [maxBytes] 以内（不下载任何文件）。
+  ///
+  /// downloader 只是占位，实际只复用 [ensureDownloaded] 路径上的
+  /// [_pruneIfNeeded] LRU 逻辑，保证「下载后裁剪」与「改上限后裁剪」同口径。
+  static Future<void> pruneToBytes(int maxBytes, {Directory? directory}) async {
+    final dir = directory ?? await defaultCacheDir();
+    final maintenance = RemoteDownloadCache(
+      tempDir: dir,
+      maxBytes: maxBytes < 0 ? 0 : maxBytes,
+      downloader: (_, _) async => throw UnsupportedError('维护模式不下载'),
+    );
+    maintenance._pruneIfNeeded();
+  }
+
+  /// 清空缓存内容（保留根目录本身，避免与正在写入的文件产生目录竞态）。
+  static Future<void> clearCache({Directory? directory}) async {
+    final dir = directory ?? await defaultCacheDir();
+    if (!dir.existsSync()) return;
+    await for (final entity in dir.list(followLinks: false)) {
+      try {
+        await entity.delete(recursive: true);
+      } catch (_) {}
+    }
+  }
+
   /// 生产工厂：按 [config] 类型构造下载器。
   ///
   /// - FTP：用 [FtpClient] 取回整文件字节后写入目标文件。
   /// - WebDAV：用 `dio.download` 直接下载到目标文件（附带 Basic 鉴权头）。
-  static Future<RemoteDownloadCache> create({RemoteStorageConfig? config}) async {
+  static Future<RemoteDownloadCache> create({
+    RemoteStorageConfig? config,
+    int? maxBytes,
+  }) async {
     final dir = await defaultCacheDir();
     final effective = config ??
         const RemoteStorageConfig(
@@ -59,6 +141,7 @@ class RemoteDownloadCache {
         );
     return RemoteDownloadCache(
       tempDir: dir,
+      maxBytes: maxBytes ?? 1024 * 1024 * 1024,
       downloader: (remotePath, dest) async {
         if (effective.type == RemoteStorageType.ftp) {
           final client = FtpClient(
@@ -131,6 +214,11 @@ class RemoteDownloadCache {
     if (dot < 0 || path.length - dot > 6) return '';
     return path.substring(dot);
   }
+
+  /// 统计分类用：`.part` 先去掉后缀，再按原始扩展名归类。
+  static String _classifyExt(String path) => _extOf(
+        path.endsWith('.part') ? path.substring(0, path.length - 5) : path,
+      );
 
   void _touch(File file) {
     try {

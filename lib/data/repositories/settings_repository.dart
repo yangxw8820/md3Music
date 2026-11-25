@@ -97,6 +97,11 @@ class SettingsRepository {
   static const String _keyQualityWifi = 'settings_default_quality_wifi';
   static const String _keyQualityMobile = 'settings_default_quality_mobile';
   static const String _keyCacheSize = 'settings_cache_size';
+  /// 缓存上限三件套：UI 滑块钳位与持久化钳位必须同源（见 _clampCacheSize）。
+  /// 默认 500MB 与历史默认值一致；旧的「清缓存后置 0」不是有效上限，读时回退默认。
+  static const int kCacheSizeDefaultMb = 500;
+  static const int kCacheSizeMinMb = 100;
+  static const int kCacheSizeMaxMb = 5120;
   // 「启动时自动播放」三件套：总开关 / 播放内容 / 是否连带推起播放页。
   // 默认总开关关（不改启动行为）、播放内容为「继续上次播放」、推页开
   // （一旦用户主动开了总开关，意图就是「进 App 就在听」，直接落在播放页
@@ -517,13 +522,19 @@ class SettingsRepository {
 
   Future<int> getCacheSize() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_keyCacheSize) ?? 500;
+    final raw = prefs.getInt(_keyCacheSize) ?? kCacheSizeDefaultMb;
+    if (raw <= 0) return kCacheSizeDefaultMb;
+    return _clampCacheSize(raw);
   }
 
   Future<void> setCacheSize(int sizeMb) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyCacheSize, sizeMb);
+    await prefs.setInt(_keyCacheSize, _clampCacheSize(sizeMb));
   }
+
+  static int _clampCacheSize(int mb) => mb < kCacheSizeMinMb
+      ? kCacheSizeMinMb
+      : (mb > kCacheSizeMaxMb ? kCacheSizeMaxMb : mb);
 
   Future<bool> getAutoPlay() async {
     final prefs = await SharedPreferences.getInstance();

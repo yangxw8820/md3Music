@@ -187,7 +187,8 @@ void main() {
     SharedPreferences.setMockInitialValues({'kugou_token': 'keep-login'});
     FlutterSecureStorage.setMockInitialValues({});
     final initial = await repo.getCacheSize();
-    final changed = initial == 1 ? 2 : 1;
+    // 1/2 会被钳位到最小档 100，往返断言要用区间内的值。
+    final changed = initial == 800 ? 900 : 800;
     await repo.setCacheSize(changed);
     expect(await repo.getCacheSize(), changed);
     await repo.resetAllSettingsToDefaults();

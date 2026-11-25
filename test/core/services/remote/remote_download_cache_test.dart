@@ -29,6 +29,41 @@ void main() {
     expect(downloads, 1);
   });
 
+  test('cacheBytes 按扩展名拆分音频/图片/其他', () async {
+    final dir = await mkTemp();
+    addTearDown(() => dir.delete(recursive: true));
+    Directory('${dir.path}/cfg').createSync(recursive: true);
+    File('${dir.path}/cfg/a.mp3').writeAsBytesSync(List.filled(100, 1));
+    File('${dir.path}/cfg/c.jpg').writeAsBytesSync(List.filled(30, 1));
+    File('${dir.path}/cfg/d.unknown').writeAsBytesSync(List.filled(10, 1));
+    // .part 半成品按原扩展名归类，仍占磁盘
+    File('${dir.path}/cfg/e.mp3.part').writeAsBytesSync(List.filled(5, 1));
+
+    final bytes = await RemoteDownloadCache.cacheBytes(directory: dir);
+    expect(bytes.audioBytes, 105);
+    expect(bytes.imageBytes, 30);
+    expect(bytes.otherBytes, 10);
+    expect(bytes.totalBytes, 145);
+  });
+
+  test('pruneToBytes 按最旧裁剪；clearCache 清空内容但保留根目录', () async {
+    final dir = await mkTemp();
+    addTearDown(() => dir.delete(recursive: true));
+    final old = File('${dir.path}/old.mp3')..writeAsBytesSync(List.filled(60, 1));
+    final fresh = File('${dir.path}/fresh.jpg')
+      ..writeAsBytesSync(List.filled(30, 1));
+    old.setLastModifiedSync(DateTime.now().subtract(const Duration(days: 1)));
+    fresh.setLastModifiedSync(DateTime.now());
+
+    await RemoteDownloadCache.pruneToBytes(50, directory: dir);
+    expect(old.existsSync(), isFalse);
+    expect(fresh.existsSync(), isTrue);
+
+    await RemoteDownloadCache.clearCache(directory: dir);
+    expect(dir.existsSync(), isTrue);
+    expect(fresh.existsSync(), isFalse);
+  });
+
   test('缓存超阈值按最旧清理，之后重新下载', () async {
     var downloads = 0;
     final cache = RemoteDownloadCache(
