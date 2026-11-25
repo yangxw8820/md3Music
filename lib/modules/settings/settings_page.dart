@@ -7640,10 +7640,7 @@ class _SettingsPageState extends State<SettingsPage>
       // 3. 重置发现页日期标志
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('discover_last_date');
-      // 4. 上限回到默认值：旧的置 0 不是有效上限，会让每次下载后立刻被裁空。
-      await _settingsRepository.setCacheSize(
-        SettingsRepository.kCacheSizeDefaultMb,
-      );
+      // 4. 保留用户设定的上限（含 0 = 不限制），清缓存不改变缓存预算。
     } catch (e) {
       debugPrint('Clear cache error: $e');
     }
@@ -8758,14 +8755,11 @@ class _CacheManagementCardState extends State<_CacheManagementCard> {
     });
   }
 
-  static int _clampMb(int mb) => mb < SettingsRepository.kCacheSizeMinMb
-      ? SettingsRepository.kCacheSizeMinMb
-      : (mb > SettingsRepository.kCacheSizeMaxMb
-          ? SettingsRepository.kCacheSizeMaxMb
-          : mb);
+  /// 0 档显示为「不限制」，其余显示具体 MB。
+  static String _limitLabel(int mb) => mb == 0 ? '不限制' : '$mb MB';
 
   Future<void> _applyLimit(int mb) async {
-    final clamped = _clampMb(mb);
+    final clamped = SettingsRepository.clampCacheSize(mb);
     if (!mounted) return;
     setState(() {
       _limitMb = clamped;
@@ -8843,7 +8837,7 @@ class _CacheManagementCardState extends State<_CacheManagementCard> {
               ),
               const Spacer(),
               Text(
-                '$_limitMb MB',
+                _limitLabel(_limitMb),
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: cs.primary,
                 ),
@@ -8859,7 +8853,7 @@ class _CacheManagementCardState extends State<_CacheManagementCard> {
             divisions: (SettingsRepository.kCacheSizeMaxMb -
                     SettingsRepository.kCacheSizeMinMb) ~/
                 _stepMb,
-            label: '$_limitMb MB',
+            label: _limitLabel(_limitMb),
             onChanged: _busy
                 ? null
                 : (value) => setState(() => _limitMb = value.round()),
@@ -8867,6 +8861,7 @@ class _CacheManagementCardState extends State<_CacheManagementCard> {
           ),
           _settingsDescription(
             context,
+            '上限设为 0 表示不限制，不自动清理；'
             '超过上限时按最近使用时间优先清理歌曲缓存，其次清理图片；'
             '在线歌曲为流式播放，不占用本地空间。',
             cs,

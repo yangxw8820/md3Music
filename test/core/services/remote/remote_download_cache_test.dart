@@ -64,6 +64,22 @@ void main() {
     expect(fresh.existsSync(), isFalse);
   });
 
+  test('maxBytes 为 0 表示不限制，pruneToBytes 不删除文件', () async {
+    final dir = await mkTemp();
+    addTearDown(() => dir.delete(recursive: true));
+    final old = File('${dir.path}/old.mp3')..writeAsBytesSync(List.filled(60, 1));
+    final fresh = File('${dir.path}/fresh.jpg')
+      ..writeAsBytesSync(List.filled(30, 1));
+    old.setLastModifiedSync(DateTime.now().subtract(const Duration(days: 2)));
+    fresh.setLastModifiedSync(DateTime.now().subtract(const Duration(days: 1)));
+
+    await RemoteDownloadCache.pruneToBytes(0, directory: dir);
+
+    expect(old.existsSync(), isTrue);
+    expect(fresh.existsSync(), isTrue);
+    expect((await RemoteDownloadCache.cacheBytes(directory: dir)).totalBytes, 90);
+  });
+
   test('缓存超阈值按最旧清理，之后重新下载', () async {
     var downloads = 0;
     final cache = RemoteDownloadCache(

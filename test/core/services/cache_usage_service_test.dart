@@ -98,6 +98,41 @@ void main() {
       expect(snapshot.overLimit, isFalse);
     });
 
+    test('limitMb 为 0 表示不限制，不触发任何裁剪', () async {
+      var remoteAudio = 100;
+      var images = 100;
+      var remoteCalls = 0;
+      var imageCalls = 0;
+      var depthCalls = 0;
+      final service = CacheUsageService(
+        networkImageBytes: () async => images,
+        depthImageBytes: () async => 0,
+        remoteCacheBytes: () async => (
+          audioBytes: remoteAudio,
+          imageBytes: 0,
+          otherBytes: 0,
+          totalBytes: remoteAudio,
+        ),
+        pruneRemote: (target) async {
+          remoteCalls++;
+          remoteAudio = target;
+        },
+        pruneNetworkImages: (target) async {
+          imageCalls++;
+          images = target;
+        },
+        clearDepth: () async => depthCalls++,
+      );
+
+      final snapshot = await service.enforceLimit(limitMb: 0);
+      expect(remoteCalls, 0);
+      expect(imageCalls, 0);
+      expect(depthCalls, 0);
+      expect(snapshot.limitBytes, 0);
+      expect(snapshot.overLimit, isFalse);
+      expect(snapshot.totalBytes, 200);
+    });
+
     test('formatBytes 输出稳定可读', () {
       expect(CacheUsageService.formatBytes(512), '512 B');
       expect(CacheUsageService.formatBytes(2048), '2.0 KB');

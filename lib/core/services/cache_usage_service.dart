@@ -22,11 +22,12 @@ class CacheUsageSnapshot {
   final int imageBytes;
   final int songBytes;
 
-  /// 本次统计时的上限（字节）；0 表示未传入。
+  /// 本次统计时的上限（字节）；0 表示未传入或不限制。
   final int limitBytes;
 
   int get totalBytes => imageBytes + songBytes;
 
+  /// 上限为 0（不限制）时永远不会判定为超限。
   bool get overLimit => limitBytes > 0 && totalBytes > limitBytes;
 }
 
@@ -80,7 +81,7 @@ class CacheUsageService {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
-  /// 读取当前上限（字节）。
+  /// 读取当前上限（字节）；0 表示不限制。
   Future<int> currentLimitBytes() async =>
       mbToBytes(await _settingsRepository.getCacheSize());
 
@@ -111,13 +112,14 @@ class CacheUsageService {
     );
   }
 
-  /// 按上限裁剪：[limitMb] 省略时读取设置里的上限。
+  /// 按上限裁剪：[limitMb] 省略时读取设置里的上限；0 表示不限制，跳过裁剪。
   ///
   /// 顺序：先裁远程歌曲（重新下载成本最低），再裁网络封面，最后才清深度图。
   /// 每一步之后重新测量，避免多删或少删。返回裁剪后的快照。
   Future<CacheUsageSnapshot> enforceLimit({int? limitMb}) async {
     final mb = limitMb ?? await _settingsRepository.getCacheSize();
     final target = mbToBytes(mb < 0 ? 0 : mb);
+    if (target == 0) return measure(limitBytes: 0);
     var snapshot = await measure(limitBytes: target);
     if (!snapshot.overLimit) return snapshot;
 

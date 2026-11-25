@@ -97,10 +97,10 @@ class SettingsRepository {
   static const String _keyQualityWifi = 'settings_default_quality_wifi';
   static const String _keyQualityMobile = 'settings_default_quality_mobile';
   static const String _keyCacheSize = 'settings_cache_size';
-  /// 缓存上限三件套：UI 滑块钳位与持久化钳位必须同源（见 _clampCacheSize）。
-  /// 默认 500MB 与历史默认值一致；旧的「清缓存后置 0」不是有效上限，读时回退默认。
+  /// 缓存上限三件套：UI 滑块钳位与持久化钳位必须同源（见 clampCacheSize）。
+  /// 默认 500MB 与历史默认值一致；0 是合法档位，表示不限制缓存占用。
   static const int kCacheSizeDefaultMb = 500;
-  static const int kCacheSizeMinMb = 100;
+  static const int kCacheSizeMinMb = 0;
   static const int kCacheSizeMaxMb = 5120;
   // 「启动时自动播放」三件套：总开关 / 播放内容 / 是否连带推起播放页。
   // 默认总开关关（不改启动行为）、播放内容为「继续上次播放」、推页开
@@ -520,19 +520,23 @@ class SettingsRepository {
   Future<void> setQualityForNetwork(bool isWifi, String quality) =>
       isWifi ? setWifiQuality(quality) : setMobileQuality(quality);
 
+  /// 读取缓存上限（MB）；0 表示不限制。
   Future<int> getCacheSize() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getInt(_keyCacheSize) ?? kCacheSizeDefaultMb;
-    if (raw <= 0) return kCacheSizeDefaultMb;
-    return _clampCacheSize(raw);
+    // 历史遗留的负数不是有效档位，回退默认；0 现在是合法的「不限制」。
+    if (raw < 0) return kCacheSizeDefaultMb;
+    return clampCacheSize(raw);
   }
 
+  /// 写入缓存上限（MB）；0 表示不限制。
   Future<void> setCacheSize(int sizeMb) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyCacheSize, _clampCacheSize(sizeMb));
+    await prefs.setInt(_keyCacheSize, clampCacheSize(sizeMb));
   }
 
-  static int _clampCacheSize(int mb) => mb < kCacheSizeMinMb
+  /// UI 与持久化共用的钳位；最小档 0 即「不限制」。
+  static int clampCacheSize(int mb) => mb < kCacheSizeMinMb
       ? kCacheSizeMinMb
       : (mb > kCacheSizeMaxMb ? kCacheSizeMaxMb : mb);
 

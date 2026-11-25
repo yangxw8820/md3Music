@@ -31,12 +31,13 @@ typedef RemoteCacheBytes = ({
 /// 文件路径约定：`tempDir/<configId>/<sha1(configId:remotePath)><ext>`。
 /// 下载时先写 `<name>.part`，确认非空后再原子 `rename` 到目标文件——
 /// 避免半成品文件被当作有效缓存播放；`.part` 存在即视为未完成。
-/// 缓存总量超过 [maxBytes] 时按最近修改时间（近似 LRU）清理最旧文件。
+/// 缓存总量超过 [maxBytes] 时按最近修改时间（近似 LRU）清理最旧文件；
+/// [maxBytes] 为 0 表示不限制，永不自动清理。
 class RemoteDownloadCache {
   /// 缓存根目录（生产为应用缓存目录下的子目录，测试为临时目录）。
   final Directory tempDir;
 
-  /// 缓存容量上限（字节），默认 1GB。
+  /// 缓存容量上限（字节），默认 1GB；0 表示不限制。
   final int maxBytes;
 
   /// 下载执行器：把 [remotePath] 的内容写入 [destFile]。
@@ -98,7 +99,8 @@ class RemoteDownloadCache {
     );
   }
 
-  /// 维护用：把缓存目录裁剪到 [maxBytes] 以内（不下载任何文件）。
+  /// 维护用：把缓存目录裁剪到 [maxBytes] 以内（不下载任何文件）；
+  /// [maxBytes] 为 0 表示不限制，不删除任何文件。
   ///
   /// downloader 只是占位，实际只复用 [ensureDownloaded] 路径上的
   /// [_pruneIfNeeded] LRU 逻辑，保证「下载后裁剪」与「改上限后裁剪」同口径。
@@ -226,8 +228,10 @@ class RemoteDownloadCache {
     } catch (_) {}
   }
 
-  /// 缓存总量超限时，按修改时间升序删除最旧文件直到不超限。
+  /// 缓存总量超限时，按修改时间升序删除最旧文件直到不超限；
+  /// [maxBytes] 为 0 时表示不限制，直接跳过。
   void _pruneIfNeeded() {
+    if (maxBytes <= 0) return;
     int total = 0;
     final files = <File>[];
     for (final f in tempDir.listSync(recursive: true).whereType<File>()) {
